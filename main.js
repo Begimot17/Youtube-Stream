@@ -3,13 +3,30 @@ import { spawn } from 'child_process'
 import 'dotenv/config';
 import fs from 'fs';
 import path from 'path';
+import yaml from 'js-yaml';
 
 const server = express()
-const audioDir = './audio';
+const audioDirs = ['./audio', './audio_2', './audio_3', './audio_4', './audio_5', './audio_6'];
+let currentAudioDirIndex = 0;
 const publicDir = path.resolve(process.cwd(), 'public');
 server.use(express.json());
 
-const streamkey = process.env.streamkey
+// Read stream key from render.yaml
+let streamkey;
+try {
+    const renderYaml = fs.readFileSync('render.yaml', 'utf8');
+    const doc = yaml.load(renderYaml);
+    const secret = doc.secrets.find(s => s.name === 'streamkey');
+    if (secret) {
+        streamkey = secret.value;
+    } else {
+        throw new Error("Secret 'streamkey' not found in render.yaml");
+    }
+} catch (e) {
+    console.error('Could not read stream key from render.yaml.', e);
+    process.exit(1);
+}
+
 const video = "assets/background_720p.mp4";
 const fontpath = process.env.fontpath;
 
@@ -110,6 +127,7 @@ async function getVideoInfo(filePath) {
 
 async function populateInitialSongList() {
     console.log("Populating initial song list...");
+    const audioDir = audioDirs[currentAudioDirIndex];
     const files = await fs.promises.readdir(audioDir);
     const audioFiles = files.filter(file => path.extname(file).toLowerCase() === '.mp3');
     
@@ -127,6 +145,7 @@ async function populateInitialSongList() {
 
 async function checkForNewSongs() {
     // console.log("Checking for new audio files...");
+    const audioDir = audioDirs[currentAudioDirIndex];
     const files = await fs.promises.readdir(audioDir);
     const onDiskSongNames = files.filter(file => path.extname(file).toLowerCase() === '.mp3');
 
@@ -167,8 +186,8 @@ async function playNextSong() {
         const audioFadeDuration = Math.min(3, duration / 2);
         const artist = 'Никита';
         const title = path.basename(songFile, path.extname(songFile));
-        const escapeText = (text) => text.replace(/[\\%':]/g, char => `\\\\\\\\'${char}`);
-        const FONT_SIZE = 80;
+        const escapeText = (text) => text.replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/:/g, "\\:").replace(/%/g, '%%');
+        const FONT_SIZE = 72;
         const artist_y = `(h*3/4)-${FONT_SIZE}`;
         const title_y = `(h*3/4)`;
         
@@ -253,6 +272,7 @@ async function playNextSong() {
                 }
             }
             
+            currentAudioDirIndex = (currentAudioDirIndex + 1) % audioDirs.length;
             playNextSong();
         });
 

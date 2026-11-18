@@ -3,3 +3,6 @@ package.lock.json
 /assets/
 .idea
 /audio/
+
+# secrets (stream key)
+render.yaml
